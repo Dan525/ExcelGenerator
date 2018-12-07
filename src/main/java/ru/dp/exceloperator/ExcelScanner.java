@@ -22,7 +22,6 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.util.CellAddress;
-import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
@@ -37,7 +36,6 @@ public class ExcelScanner {
     private XSSFWorkbook book;
     private Map<String, CellAddress> measTypeMap;
     private Map<Integer, NominalValues> nominalMap;
-    private List<Integer> rowNumsToDelete;
 
     public ExcelScanner(String EXCEL_TEMPLATE) throws IOException {
         this.EXCEL_TEMPLATE = EXCEL_TEMPLATE;
@@ -230,6 +228,17 @@ public class ExcelScanner {
         } catch (IOException e) {
             Logger.getLogger(ExcelScanner.class.getName()).log(Level.SEVERE, "Can't write book", e);
         }
+    }
 
+    public Map<String, CellAddress> getMeasTypeMap() {
+        return measTypeMap;
+    }
+
+    public Map<Integer, NominalValues> getNominalMap() {
+        return nominalMap;
+    }
+
+    public XSSFWorkbook getBook() {
+        return book;
     }
 }
