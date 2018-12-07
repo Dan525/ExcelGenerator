@@ -14,7 +14,7 @@ import java.io.IOException;
 public class Demo {
     public static void main(String[] args) throws IOException {
         ExcelScanner reader = new ExcelScanner("D:\\MyWorkspace\\protocol.xlsx");
-        reader.iterateOnCells(0);
+        reader.scanSheet(0);
         //reader.printInfo();
         reader.save();
     }
