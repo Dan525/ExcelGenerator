@@ -12,8 +12,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -32,18 +32,20 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 public class ExcelScanner {
 
     private final String EXCEL_TEMPLATE;
+    private final String EXCEL_COMPLETED;
 
     private XSSFWorkbook book;
     private Map<String, CellAddress> measTypeMap;
     private Map<Integer, NominalValues> nominalMap;
 
-    public ExcelScanner(String EXCEL_TEMPLATE) throws IOException {
-        this.EXCEL_TEMPLATE = EXCEL_TEMPLATE;
+    public ExcelScanner(String templatePath, String completedPath) throws IOException {
+        EXCEL_TEMPLATE = templatePath;
+        EXCEL_COMPLETED = completedPath;
         init(EXCEL_TEMPLATE);
     }
 
-    private void init(String EXCEL_TEMPLATE) throws FileNotFoundException, IOException {
-        FileInputStream is = new FileInputStream(new File(EXCEL_TEMPLATE));
+    private void init(String templatePath) throws FileNotFoundException, IOException {
+        FileInputStream is = new FileInputStream(new File(templatePath));
         book = new XSSFWorkbook(is);
         measTypeMap = new HashMap<>();
         nominalMap = new HashMap<>();
@@ -63,16 +65,6 @@ public class ExcelScanner {
         }
     }
 
-//    public void printInfo() {
-//        if (targetMap != null) {
-//            for (Map.Entry<String, NominalValues> entry : targetMap.entrySet()) {
-//                System.out.println(entry.getKey());
-//                System.out.println("Число измерений: " + (entry.getValue().getEndAddress().getRow() + 1
-//                        - entry.getValue().getStartAddress().getRow()));
-//            }
-//        }
-//    }
-
     /*
         http://www.quizful.net/post/Java-RegExp
         Круглые скобки - группа
@@ -82,57 +74,53 @@ public class ExcelScanner {
         \\d - цифры
         + - последовательность из предшествующего символа
      */
-//    public void findStartTypes(String str, Cell cell) {
-//        Pattern pattern = Pattern.compile("((nom)\\_([a-z0-9]+)\\_)[^end]?\\d+"); //nom_"какой-то тип"_не должно быть end, должна быть последовательность цифр
-//        Matcher matcher = pattern.matcher(str);
-//        if (matcher.find()) {
-//            System.out.println(matcher.group(3) + " " + cell.getAddress().getRow());
-//            cell.setCellValue(str.replaceAll(matcher.group(1), ""));
-//        }
-//    }
-//
-//    public void findEndTypes(String str, Cell cell) {
-//        Pattern pattern = Pattern.compile("(nom)\\_([a-z0-9]+)\\_(end)\\_");
-//        Matcher matcher = pattern.matcher(str);
-//        if (matcher.find()) {
-//            System.out.println(matcher.group(2) + " " + cell.getAddress().getRow());
-//            cell.setCellValue(str.replaceAll(pattern.pattern(), ""));
-//        }
-//    }
     private void checkNom(Cell cell) {
-        if (cell.getCellTypeEnum().equals(CellType.STRING)) {
-            String str = cell.getStringCellValue();
-//            Pattern pattern = Pattern.compile("(nom\\_)\\d+");
-            Pattern pattern = Pattern.compile("(nom)");
-            Matcher matcher = pattern.matcher(str);
-            if (matcher.find()) {
-//                cell.setCellValue(str.replaceAll(matcher.group(1), ""));
-                int y = cell.getAddress().getRow() + 1;
-                if (nominalMap.get(y) == null) {
-                    nominalMap.put(y, new NominalValues());
-                }
-                findTypesInRow(cell);
-                fillNomValues(cell);
-            }
+        switch (cell.getCellTypeEnum()) {
+            case STRING: {
+                processString(cell);
+                break;
+            }                
+            case FORMULA: {
+                processFormula(cell);
+            }                
         }
-
     }
 
-//    private boolean checkNomEnd(Cell cell) {
-//        if (!cell.getCellTypeEnum().equals(CellType.STRING)) {
-//            cell.setCellType(CellType.STRING);
-//        }
-//        String str = cell.getStringCellValue();
-//        Pattern pattern = Pattern.compile("(nom\\_end\\_)\\d+");
-//        Matcher matcher = pattern.matcher(str);
-//        if (matcher.find()) {
-//            cell.setCellValue(str.replaceAll(matcher.group(1), ""));
-//            return true;
-//        }
-//        return false;
-//    }
+    private void processString(Cell cell) {
+        String str = cell.getStringCellValue();
+        Pattern pattern = Pattern.compile("([Nn]om\\_)(-?[0-9]+,?[0-9]*)");
+        Matcher matcher = pattern.matcher(str);
+        if (matcher.find()) {
+            double value = Double.valueOf(matcher.group(2).replace(",", "."));
+            cell.setCellType(CellType.NUMERIC);
+            cell.setCellValue(value);
+            int y = cell.getAddress().getRow();
+            if (nominalMap.get(y) == null) {
+                nominalMap.put(y, new NominalValues());
+            }
+            findTypesInRow(cell);
+            fillNomValues(cell);
+        }
+    }
+
+    private void processFormula(Cell cell) {
+        String formula = cell.getCellFormula();
+        Pattern pattern = Pattern.compile("\"[Nn]om_\" *& *");
+        Matcher matcher = pattern.matcher(formula);
+        if (matcher.find()) {
+            formula = formula.replaceAll(matcher.group(0), "");
+            cell.setCellFormula(formula);
+            int y = cell.getAddress().getRow();
+            if (nominalMap.get(y) == null) {
+                nominalMap.put(y, new NominalValues());
+            }
+            findTypesInRow(cell);
+            fillNomValues(cell);
+        }
+    }
+
     private void fillNomValues(Cell cell) {
-        int y = cell.getAddress().getRow() + 1;
+        int y = cell.getAddress().getRow();
         int x = cell.getAddress().getColumn();
         NominalValues values = nominalMap.get(y);
         XSSFSheet sheet = book.getSheetAt(0);
@@ -146,13 +134,16 @@ public class ExcelScanner {
             switch (iterableCell.getCellTypeEnum()) {
                 case NUMERIC: {
                     double value = iterableCell.getNumericCellValue();
-                    values.getNominalMap().put(value, iterableCell.getAddress().getRow());
+                    values.getNominalValuesMap().put(value, iterableCell.getAddress().getRow());
                     break;
                 }
                 case FORMULA: {
-                    if (iterableCell.getCachedFormulaResultTypeEnum().equals(CellType.NUMERIC)) {
-                        double value = iterableCell.getNumericCellValue();
-                        values.getNominalMap().put(value, iterableCell.getAddress().getRow());
+                    String str1 = iterableCell.getRichStringCellValue().toString();
+                    double doub = iterableCell.getNumericCellValue();
+                    if (iterableCell.getCachedFormulaResultTypeEnum().equals(CellType.STRING)) {
+                        String str = iterableCell.getStringCellValue();
+                        double value = Double.valueOf(iterableCell.getStringCellValue().replace(",", "."));
+                        values.getNominalValuesMap().put(value, iterableCell.getAddress().getRow());
                         break;
                     }
                 }
@@ -166,36 +157,17 @@ public class ExcelScanner {
     private void checkMeasurementType(Cell cell) {
         if (cell.getCellTypeEnum().equals(CellType.STRING)) {
             String str = cell.getStringCellValue();
-            Pattern pattern = Pattern.compile("(meas\\_)([a-z0-9]+)"); //nom_"какой-то тип"_не должно быть end, должна быть последовательность цифр
+            Pattern pattern = Pattern.compile("([Mm]eas\\_)([a-z0-9]+)");
             Matcher matcher = pattern.matcher(str);
             if (matcher.find()) {
                 String measType = matcher.group(2);
-//                cell.setCellValue(str.replaceAll(matcher.group(0), ""));
-                int y = cell.getAddress().getRow() + 1;
+                cell.setCellType(CellType.BLANK);
+                int y = cell.getAddress().getRow();
                 int x = cell.getAddress().getColumn();
                 measTypeMap.put(measType, new CellAddress(y, x));
             }
         }
 
-    }
-
-    /**
-     * Remove a row by its index
-     *
-     * @param sheet a Excel sheet
-     * @param rowIndex a 0 based index of removing row
-     */
-    public static void removeRow(XSSFSheet sheet, int rowIndex) {
-        int lastRowNum = sheet.getLastRowNum();
-        if (rowIndex >= 0 && rowIndex < lastRowNum) {
-            sheet.shiftRows(rowIndex + 1, lastRowNum, -1);
-        }
-        if (rowIndex == lastRowNum) {
-            Row removingRow = sheet.getRow(rowIndex);
-            if (removingRow != null) {
-                sheet.removeRow(removingRow);
-            }
-        }
     }
 
     private void findTypesInRow(Cell cell) {
@@ -206,12 +178,26 @@ public class ExcelScanner {
             Cell iterableCell = cellIter.next();
             checkMeasurementType(iterableCell);
         }
-//        sheet.removeRow(cell.getRow());
-//        sheet.shiftRows(y + 1, sheet.getLastRowNum(), -1);
+    }
+    
+    public void setValue(String type, double nomValue, double measValue) {
+        if (measTypeMap.get(type) == null) {
+            throw new NoSuchElementException("No such type: " + type);
+        }
+        int y = measTypeMap.get(type).getRow();
+        int xCell = measTypeMap.get(type).getColumn();
+        
+        Map<Double, Integer> nominalValuesMap = nominalMap.get(y).getNominalValuesMap();
+        if (nominalValuesMap.get(nomValue) == null) {
+            throw new NoSuchElementException("No such nominal value for this type: " + type);
+        }
+        int yCell = nominalMap.get(y).getNominalValuesMap().get(nomValue);
+        
+        book.getSheetAt(0).getRow(yCell).getCell(xCell).setCellValue(measValue);
     }
 
     public void save() {
-        File file = new File("D:\\MyWorkspace\\protocol_completed.xlsx");
+        File file = new File(EXCEL_COMPLETED);
         if (!file.exists()) {
             try {
                 file.createNewFile();

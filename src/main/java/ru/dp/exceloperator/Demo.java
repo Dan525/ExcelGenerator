@@ -15,16 +15,19 @@ import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
  */
 public class Demo {
     public static void main(String[] args) throws IOException, FileNotFoundException, InvalidFormatException {
-        ExcelScanner reader = new ExcelScanner("D:\\MyWorkspace\\protocol.xlsx");
+        String templatePath = "D:\\MyWorkspace\\protocol.xlsx";
+        String completedPath = "D:\\MyWorkspace\\protocol_completed.xlsx";
+        ExcelScanner reader = new ExcelScanner(templatePath, completedPath);
         reader.scanSheet(0);
-        ExcelUpdater updater = new ExcelUpdater(reader);
-        updater.setValue("ia5", 1.5, 1.489);
-        updater.setValue("ib5", 1.5, 1.4439);
-        updater.setValue("ic5", 1.5, 1.562);
-        updater.setValue("ic5", 0.5, 0.489);
-        updater.setValue("ia5", 6, 5.23);
-        updater.setValue("ic1", 0.7, 0.7456);
-        //reader.printInfo();
+        reader.setValue("ia5", 0.05, 1.489);
+        reader.setValue("ib5", 0.05, 1.4439);
+        reader.setValue("ic5", 0.05, 1.562);
+        reader.setValue("ia1", 0.01, 0.454);
+        reader.setValue("ib1", 0.01, 8.46);
+        reader.setValue("ic1", 0.01, 97.412);
+        reader.setValue("ic5", 0.5, 0.489);
+        reader.setValue("ia5", 6, 5.23);
+        reader.setValue("ic1", 0.7, 0.7456);
         reader.save();
     }
 }

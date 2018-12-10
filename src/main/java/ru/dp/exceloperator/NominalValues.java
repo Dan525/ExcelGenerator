@@ -20,7 +20,7 @@ public class NominalValues {
         nominalMap = new HashMap<>();
     }
 
-    public Map<Double, Integer> getNominalMap() {
+    public Map<Double, Integer> getNominalValuesMap() {
         return nominalMap;
     }    
 }

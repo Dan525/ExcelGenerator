@@ -21,7 +21,7 @@ public class ExcelUpdater {
         int y = scanner.getMeasTypeMap().get(type).getRow();
         int xCell = scanner.getMeasTypeMap().get(type).getColumn();
         
-        int yCell = scanner.getNominalMap().get(y).getNominalMap().get(nomValue);
+        int yCell = scanner.getNominalMap().get(y).getNominalValuesMap().get(nomValue);
         
         scanner.getBook().getSheetAt(0).getRow(yCell).getCell(xCell).setCellValue(measValue);
     }
